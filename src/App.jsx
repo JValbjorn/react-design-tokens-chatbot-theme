@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Message, Composer } from './components.jsx';
 import { welcome, replyTo } from './replies.js';
+import posthog, { posthogConfigured } from './posthog.js';
+import { logChatMessageProcessed, logChatReset, logThemeApplied } from './posthog-logger.js';
 
 export default function App() {
   const [messages, setMessages] = useState([welcome]);
@@ -13,10 +15,25 @@ export default function App() {
   }, [messages]);
 
   function send(text) {
+    if (posthogConfigured) posthog.capture('chat_message_sent');
+    logChatMessageProcessed();
     setMessages(current => [...current,
       { id: crypto.randomUUID(), role: 'user', text },
       { id: crypto.randomUUID(), role: 'assistant', ...replyTo(text) }
     ]);
+  }
+
+  function toggleTheme() {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    if (posthogConfigured) posthog.capture('theme_changed', { theme: nextTheme });
+    logThemeApplied(nextTheme);
+    setTheme(nextTheme);
+  }
+
+  function resetChat() {
+    if (posthogConfigured) posthog.capture('chat_reset');
+    logChatReset();
+    setMessages([welcome]);
   }
 
   return <main className="app" data-theme={theme}>
@@ -28,7 +45,7 @@ export default function App() {
             variant="secondary"
             aria-label={`Skift til ${theme === 'light' ? 'mørkt' : 'lyst'} tema`}
             title={`Skift til ${theme === 'light' ? 'mørkt' : 'lyst'} tema`}
-            onClick={() => setTheme(current => current === 'light' ? 'dark' : 'light')}
+            onClick={toggleTheme}
           >
             <span className="theme-button-content">
               <svg className="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
@@ -40,7 +57,7 @@ export default function App() {
               {theme === 'light' ? 'Lyst' : 'Mørkt'}
             </span>
           </Button>
-          <Button variant="secondary" onClick={() => setMessages([welcome])}>Ny samtale</Button>
+          <Button variant="secondary" onClick={resetChat}>Ny samtale</Button>
         </div>
       </header>
       <nav className="learning-links" aria-label="React-demonstrationer">
